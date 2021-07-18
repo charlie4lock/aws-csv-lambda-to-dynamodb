@@ -1,0 +1,37 @@
+import boto3
+import csv
+
+
+def lambda_handler(event, context):
+    region = 'ap-southeast-2'
+    recList = []
+    try:
+        s3 = boto3.client('s3')
+        dyndb = boto3.client('dynamodb', region_name=region)
+        confile = s3.get_object(Bucket='awscredentialsdynamoimport',
+                                Key='call centre structure.xlsx - call centre (1).csv')
+        recList = confile['Body'].read().split('\n')
+        firstrecord = True
+        csv_reader = csv.reader(recList, delimiter=',', quotechar='"')
+        for row in csv_reader:
+            if (firstrecord):
+                firstrecord = False
+                continue
+            AgentExtension = row[0]
+            name = row[1].replace(',', '').replace('$', '') if row[1] else '-'
+            surname = row[2].replace(',', '').replace('$', '') if row[2] else 0
+            emailaddress = row[3].replace(
+                ',', '').replace('$', '') if row[3] else 0
+            userlogin = row[4].replace(',', '').replace(
+                '$', '') if row[4] else 0
+            response = dyndb.put_item(
+                TableName='SwitchedOn-Agent-Extensions',
+                Item={
+                    'AgentExtension': {'N': str(AgentExtension)},
+                    'name': {'S': name},
+                    'surname': {'S': surname},
+                    'emailaddress': {'S': emailaddress},
+                    'userlogin': {'S': userlogin},
+                }
+            )
+        print('Put succeeded:')
