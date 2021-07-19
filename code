@@ -1,37 +1,45 @@
 import boto3
+import json
 import csv
 
 
 def lambda_handler(event, context):
-    region = 'ap-southeast-2'
-    recList = []
-    try:
-        s3 = boto3.client('s3')
+    region='ap-southeast-2'
+    recList=[]
+    try:            
+        s3=boto3.client('s3')  
+        print("aa done")
         dyndb = boto3.client('dynamodb', region_name=region)
-        confile = s3.get_object(Bucket='awscredentialsdynamoimport',
-                                Key='call centre structure.xlsx - call centre (1).csv')
+        confile= s3.get_object(Bucket='awscredentialsdynamoimport', Key='callcentre.csv')
+        print("bbdone")
         recList = confile['Body'].read().split('\n')
-        firstrecord = True
+        #reclist = json.loads(confile['Body'].read())
+        print(reclist)
+        firstrecord=True
         csv_reader = csv.reader(recList, delimiter=',', quotechar='"')
         for row in csv_reader:
             if (firstrecord):
-                firstrecord = False
+                firstrecord=False
                 continue
-            AgentExtension = row[0]
-            name = row[1].replace(',', '').replace('$', '') if row[1] else '-'
-            surname = row[2].replace(',', '').replace('$', '') if row[2] else 0
-            emailaddress = row[3].replace(
-                ',', '').replace('$', '') if row[3] else 0
-            userlogin = row[4].replace(',', '').replace(
-                '$', '') if row[4] else 0
+            Number = row[0]
+            Agentnumbers =  row[1].replace(',','').replace('$','') if row[1] else 0
+            name = row[2].replace(',','').replace('$','') if row[2] else '-'
+            surname = row[3].replace(',','').replace('$','') if row[3] else '-'
+            emailaddress = row[4].replace(',','').replace('$','') if row[4] else '-'
+            userlogin = row[5].replace(',','').replace('$','') if row[5] else '-'
+            fallbackqueue = row[6].replace(',','').replace('$','') if row[6] else '-'
             response = dyndb.put_item(
-                TableName='SwitchedOn-Agent-Extensions',
+                TableName='Agentsfullnumber',
                 Item={
-                    'AgentExtension': {'N': str(AgentExtension)},
-                    'name': {'S': name},
-                    'surname': {'S': surname},
-                    'emailaddress': {'S': emailaddress},
-                    'userlogin': {'S': userlogin},
+                'Number': {'B':str(Number)},
+                'Agentnumbers' : {'N':str(Agentnumbers)},
+                'name': {'S':name},
+                'surname': {'S' :surname},
+                'emailaddress': {'S' : emailaddress},
+                'userlogin': {'S' : userlogin},
+                'fallbackqueue' : {'S' : fallbackqueue}
                 }
             )
         print('Put succeeded:')
+    except Exception as e:
+        print((str(e)))
