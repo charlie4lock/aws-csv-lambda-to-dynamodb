@@ -1,37 +1,45 @@
 import boto3
 import csv
-
+import time
+import os
 
 def lambda_handler(event, context):
-    region = 'ap-southeast-2'
-    recList = []
-    try:
-        s3 = boto3.client('s3')
-        dyndb = boto3.client('dynamodb', region_name=region)
-        confile = s3.get_object(Bucket='awscredentialsdynamoimport',
-                                Key='call centre structure.xlsx - call centre (1).csv')
-        recList = confile['Body'].read().split('\n')
-        firstrecord = True
-        csv_reader = csv.reader(recList, delimiter=',', quotechar='"')
-        for row in csv_reader:
-            if (firstrecord):
-                firstrecord = False
-                continue
-            AgentExtension = row[0]
-            name = row[1].replace(',', '').replace('$', '') if row[1] else '-'
-            surname = row[2].replace(',', '').replace('$', '') if row[2] else 0
-            emailaddress = row[3].replace(
-                ',', '').replace('$', '') if row[3] else 0
-            userlogin = row[4].replace(',', '').replace(
-                '$', '') if row[4] else 0
-            response = dyndb.put_item(
-                TableName='SwitchedOn-Agent-Extensions',
-                Item={
-                    'AgentExtension': {'N': str(AgentExtension)},
-                    'name': {'S': name},
-                    'surname': {'S': surname},
-                    'emailaddress': {'S': emailaddress},
-                    'userlogin': {'S': userlogin},
-                }
-            )
+    region='ap-southeast-2'
+    ts = int(time.time())
+    filepath = '/tmp/callcentre-{}.csv'.format(str(ts))
+    print("Will write to filepath {}".format(filepath))
+    s3 = boto3.client('s3')
+    dyndb = boto3.client('dynamodb', region_name=region)
+    try:            
+        s3.download_file(Bucket='awscredentialsdynamoimport', Key='callcentre.csv', Filename=filepath)
+        print("Downloaded file!")
+        with open(filepath, newline="\n") as csvfile:
+            csv_reader = csv.reader(csvfile, delimiter=',', quotechar='"')
+            print("Opened CSV. Now Parsing.")
+            for row in csv_reader:
+                Number = row[0]
+                Agentnumbers =  row[1] if len(row[1]) > 0 else 0 # May be empty
+                name = row[2] # Can this be empty?
+                surname = row[3] # Can this be empty?
+                emailaddress = row[4] # Can this be empty?
+                userlogin = row[5] # Can this be empty?
+                fallbackqueue = row[6] # Can this be empty?
+                print("Writing details for Agent with id {}".format(userlogin))
+                dyndb.put_item(
+                    TableName='Agentsfullnumber',
+                    Item={
+                    'Number': {'N':str(Number)}, # Is expected to be a number
+                    'Agentnumbers' : {'N':str(Agentnumbers)}, # Phonenumber
+                    'name': {'S':name}, # String
+                    'surname': {'S' :surname}, # String
+                    'emailaddress': {'S' : emailaddress}, # String
+                    'userlogin': {'S' : userlogin}, # AKA Username
+                    'fallbackqueue' : {'S' : fallbackqueue} # ARN format
+                    }
+                )
         print('Put succeeded:')
+    except Exception as e:
+        print((str(e)))
+    # Cleanup file once done
+    if os.path.exists(filepath):
+        os.remove(filepath)
